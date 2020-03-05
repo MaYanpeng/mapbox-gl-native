@@ -94,7 +94,7 @@ public:
                     &kCFTypeDictionaryValueCallBacks));
             
             CTFontDescriptorRefHandle descriptor(CTFontDescriptorCreateWithAttributes(*attributes));
-            fontHandle = CTFontCreateWithFontDescriptor(*descriptor, 0.0, NULL);
+            fontHandle = CTFontCreateWithFontDescriptorAndOptions(*descriptor, 0.0, NULL, kCTFontOptionsPreventAutoActivation);
             if (!fontHandle) {
                 throw std::runtime_error("CTFontCreateWithFontDescriptor failed");
             }
