@@ -79,7 +79,7 @@ public:
         CFMutableArrayRefHandle fontDescriptors(CFArrayCreateMutable(kCFAllocatorDefault, fontNames.count, &kCFTypeArrayCallBacks));
         for (NSString *name in fontNames) {
             NSDictionary *fontAttributes = @{
-                (NSString *)kCTFontSizeAttribute: @(24.0),
+                (NSString *)kCTFontSizeAttribute: @(util::ONE_EM),
                 (NSString *)kCTFontNameAttribute: name,
                 (NSString *)kCTFontDisplayNameAttribute: name,
                 (NSString *)kCTFontFamilyNameAttribute: name,
@@ -89,8 +89,8 @@ public:
             CFArrayAppendValue(*fontDescriptors, *descriptor);
         }
 
-        CFStringRef keys[] = { kCTFontSizeAttribute,          kCTFontCascadeListAttribute };
-        CFTypeRef values[] = { (__bridge CFNumberRef)@(24.0), *fontDescriptors };
+        CFStringRef keys[] = { kCTFontSizeAttribute,                  kCTFontCascadeListAttribute };
+        CFTypeRef values[] = { (__bridge CFNumberRef)@(util::ONE_EM), *fontDescriptors };
 
         CFDictionaryRefHandle attributes(
             CFDictionaryCreate(kCFAllocatorDefault, (const void**)&keys,
