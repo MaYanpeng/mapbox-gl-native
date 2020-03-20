@@ -125,11 +125,27 @@ bool LocalGlyphRasterizer::canRasterizeGlyph(const FontStack&, GlyphID glyphID) 
     return util::i18n::allowsFixedWidthGlyphGeneration(glyphID) && impl->isEnabled();
 }
 
-PremultipliedImage drawGlyphBitmap(GlyphID glyphID, CTFontRef font, Size size) {
-    PremultipliedImage rgbaBitmap(size);
-    
+PremultipliedImage drawGlyphBitmap(GlyphID glyphID, CTFontRef font, GlyphMetrics& metrics) {
     CFStringRefHandle string(CFStringCreateWithCharacters(NULL, reinterpret_cast<UniChar*>(&glyphID), 1));
 
+    CFStringRef keys[] = { kCTFontAttributeName };
+    CFTypeRef values[] = { font };
+
+    CFDictionaryRefHandle attributes(
+        CFDictionaryCreate(kCFAllocatorDefault, (const void**)&keys,
+            (const void**)&values, sizeof(keys) / sizeof(keys[0]),
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks));
+
+    CFAttributedStringRefHandle attrString(CFAttributedStringCreate(kCFAllocatorDefault, *string, *attributes));
+    CTLineRefHandle line(CTLineCreateWithAttributedString(*attrString));
+    
+    Size size(35, 35);
+    metrics.width = size.width;
+    metrics.height = size.height;
+    
+    PremultipliedImage rgbaBitmap(size);
+    
     CGColorSpaceHandle colorSpace(CGColorSpaceCreateDeviceRGB());
     if (!colorSpace) {
         throw std::runtime_error("CGColorSpaceCreateDeviceRGB failed");
@@ -150,52 +166,43 @@ PremultipliedImage drawGlyphBitmap(GlyphID glyphID, CTFontRef font, Size size) {
     if (!context) {
         throw std::runtime_error("CGBitmapContextCreate failed");
     }
-
-    CFStringRef keys[] = { kCTFontAttributeName };
-    CFTypeRef values[] = { font };
-
-    CFDictionaryRefHandle attributes(
-        CFDictionaryCreate(kCFAllocatorDefault, (const void**)&keys,
-            (const void**)&values, sizeof(keys) / sizeof(keys[0]),
-            &kCFTypeDictionaryKeyCallBacks,
-            &kCFTypeDictionaryValueCallBacks));
-
-    CFAttributedStringRefHandle attrString(CFAttributedStringCreate(kCFAllocatorDefault, *string, *attributes));
-    CTLineRefHandle line(CTLineCreateWithAttributedString(*attrString));
+    
+    CFArrayRef glyphRuns = CTLineGetGlyphRuns(*line);
+    CTRunRef glyphRun = (CTRunRef)CFArrayGetValueAtIndex(glyphRuns, 0);
+    CFRange wholeRunRange = CFRangeMake(0, CTRunGetGlyphCount(glyphRun));
+    CGSize advances[wholeRunRange.length];
+    CTRunGetAdvances(glyphRun, wholeRunRange, advances);
+    metrics.advance = advances[0].width;
+    
+    CGFloat descent;
+    CTRunGetTypographicBounds(glyphRun, wholeRunRange, NULL, &descent, NULL);
     
     // Start drawing a little bit below the top of the bitmap
-    CGContextSetTextPosition(*context, 0.0, 5.0);
+    CGContextSetTextPosition(*context, 0.0, descent);
     CTLineDraw(*line, *context);
     
     return rgbaBitmap;
 }
 
 Glyph LocalGlyphRasterizer::rasterizeGlyph(const FontStack& fontStack, GlyphID glyphID) {
-    Glyph fixedMetrics;
-    CTFontRef font = impl->createFont(fontStack);
+    Glyph manufacturedGlyph;
+    CTFontRefHandle font(impl->createFont(fontStack));
     if (!font) {
-        return fixedMetrics;
+        return manufacturedGlyph;
     }
     
-    fixedMetrics.id = glyphID;
+    manufacturedGlyph.id = glyphID;
 
-    Size size(35, 35);
-    
-    fixedMetrics.metrics.width = size.width;
-    fixedMetrics.metrics.height = size.height;
-    fixedMetrics.metrics.left = 3;
-    fixedMetrics.metrics.top = -1;
-    fixedMetrics.metrics.advance = 24;
-
-    PremultipliedImage rgbaBitmap = drawGlyphBitmap(glyphID, font, size);
+    PremultipliedImage rgbaBitmap = drawGlyphBitmap(glyphID, *font, manufacturedGlyph.metrics);
    
+    Size size(manufacturedGlyph.metrics.width, manufacturedGlyph.metrics.height);
     // Copy alpha values from RGBA bitmap into the AlphaImage output
-    fixedMetrics.bitmap = AlphaImage(size);
+    manufacturedGlyph.bitmap = AlphaImage(size);
     for (uint32_t i = 0; i < size.width * size.height; i++) {
-        fixedMetrics.bitmap.data[i] = rgbaBitmap.data[4 * i + 3];
+        manufacturedGlyph.bitmap.data[i] = rgbaBitmap.data[4 * i + 3];
     }
 
-    return fixedMetrics;
+    return manufacturedGlyph;
 }
 
 } // namespace mbgl
