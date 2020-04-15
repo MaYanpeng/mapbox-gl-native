@@ -121,8 +121,8 @@ LocalGlyphRasterizer::LocalGlyphRasterizer(const optional<std::string>& fontFami
 LocalGlyphRasterizer::~LocalGlyphRasterizer()
 {}
 
-bool LocalGlyphRasterizer::canRasterizeGlyph(const FontStack&, GlyphID glyphID) {
-    return util::i18n::allowsFixedWidthGlyphGeneration(glyphID) && impl->isEnabled();
+bool LocalGlyphRasterizer::canRasterizeGlyph(const FontStack&, GlyphID) {
+    return impl->isEnabled();
 }
 
 PremultipliedImage drawGlyphBitmap(GlyphID glyphID, CTFontRef font, GlyphMetrics& metrics) {
@@ -179,7 +179,15 @@ PremultipliedImage drawGlyphBitmap(GlyphID glyphID, CTFontRef font, GlyphMetrics
     
     // Start drawing a little bit below the top of the bitmap
     CGContextSetTextPosition(*context, 0.0, descent);
-    CTLineDraw(*line, *context);
+//    CTLineDraw(*line, *context);
+    
+    CTFontRef glyphFont = (CTFontRef)CFDictionaryGetValue(CTRunGetAttributes(glyphRun), kCTFontAttributeName);
+    
+    CGGlyph glyphs[wholeRunRange.length];
+    CTRunGetGlyphs(glyphRun, wholeRunRange, glyphs);
+    CGPoint positions[wholeRunRange.length];
+    CTRunGetPositions(glyphRun, wholeRunRange, positions);
+    CTFontDrawGlyphs(glyphFont, glyphs, positions, wholeRunRange.length, *context);
     
     return rgbaBitmap;
 }
